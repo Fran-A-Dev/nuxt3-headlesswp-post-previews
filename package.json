@@ -6,10 +6,10 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
-    "start" : "node .output/server/index.mjs"
+    "start": "node .output/server/index.mjs"
   },
   "devDependencies": {
-    "nuxt": "^3.2.3"
+    "nuxt": "^3.17.1"
   },
   "dependencies": {
     "@nuxt/devtools": "^0.2.5",

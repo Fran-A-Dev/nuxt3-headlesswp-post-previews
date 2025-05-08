@@ -1,32 +1,42 @@
-<script setup lang="ts">
-const route = useRoute()
+<script setup>
+import { ref } from "vue";
+import Post from "~/components/Post.vue";
+import TheHeader from "~/components/TheHeader.vue";
+
 const config = useRuntimeConfig();
-const { data, refresh, pending } = await useFetch(config.public.wordpressUrl, {
-  method: 'get',
-  query: {
-    query: `
-      query NewQuery {
-        posts(first:10){
-          nodes {
-            title
-            date
-            excerpt
-            uri
-          }
-        }
-      }`
-}, 
-transform(data:any){
- return data.data.posts.nodes as Array<Record<'title' | 'date' | 'excerpt' | 'uri', string>>;
-}
-});
+const error = ref(null);
+
+const query = `
+  query {
+    posts {
+      nodes {
+        title
+        date
+        excerpt
+        uri
+      }
+    }
+  }
+`;
+
+const { data, pending } = await useFetch(
+  `${config.public.wordpressUrl}?query=${encodeURIComponent(query)}`,
+  {
+    method: "GET",
+    transform: (response) => response?.data?.posts?.nodes || [],
+  }
+);
 </script>
 
 <template>
   <div>
-    <TheHeader></TheHeader>
+    <TheHeader />
     <div class="grid gap-8 grid-cols-1 lg:grid-cols-3 p-6">
-      <Post v-for="post in data" :key="post.uri" :post="post"></Post>
+      <template v-if="!pending && data">
+        <Post v-for="post in data" :key="post.uri" :post="post" />
+      </template>
+      <div v-else-if="error" class="text-red-500">Error: {{ error }}</div>
+      <div v-else>Loading...</div>
     </div>
   </div>
 </template>
