@@ -1,24 +1,20 @@
 import { getTokensFromCode, getTokensFromRefreshToken } from "../../faust";
 
-// Define the route explicitly with a specific path
+// Using the .get.ts extension ensures this is registered as a GET endpoint
 export default defineEventHandler(async (event) => {
-  // Log the full request details
-  console.log("Preview API called with:", {
-    path: event.path,
-    method: event.method,
-    query: getQuery(event),
-    headers: event.headers,
-  });
-
   const config = useRuntimeConfig();
   const query = getQuery(event);
   const { code, refreshToken, previewId } = query;
 
-  if (!previewId) {
-    throw createError({
-      statusCode: 400,
-      message: "previewId is required",
-    });
+  // Parse the preview ID as an integer
+  const parsedPreviewId =
+    typeof previewId === "string" ? parseInt(previewId, 10) : previewId;
+
+  if (!parsedPreviewId) {
+    return {
+      success: false,
+      message: "previewId is required or not a valid number",
+    };
   }
 
   try {
@@ -29,33 +25,32 @@ export default defineEventHandler(async (event) => {
       try {
         tokens = await getTokensFromRefreshToken(refreshToken as string);
       } catch (e) {
-        console.error("Refresh token error:", e);
         // If refresh fails, try with code
         if (!code) {
-          throw createError({
-            statusCode: 401,
+          return {
+            success: false,
             message:
               "Invalid refresh token and no authorization code available",
-          });
+          };
         }
         tokens = await getTokensFromCode(decodeURIComponent(code as string));
       }
     } else if (code) {
       tokens = await getTokensFromCode(decodeURIComponent(code as string));
     } else {
-      throw createError({
-        statusCode: 400,
+      return {
+        success: false,
         message: "No authorization code or refresh token provided",
-      });
+      };
     }
 
-    console.log("Tokens received:", {
-      hasAccessToken: !!tokens.accessToken,
-      hasRefreshToken: !!tokens.refreshToken,
-    });
-
     // Fetch preview data from WordPress
-    const response = await fetch(`${config.public.wordpressUrl}/graphql`, {
+    const graphqlUrl = `${config.public.wordpressUrl}/graphql`.replace(
+      "/graphql/graphql",
+      "/graphql"
+    );
+
+    const response = await fetch(graphqlUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -73,22 +68,18 @@ export default defineEventHandler(async (event) => {
           }
         `,
         variables: {
-          id: previewId,
+          id: parsedPreviewId,
         },
       }),
     });
 
     const result = await response.json();
-    console.log("GraphQL response:", {
-      hasData: !!result?.data,
-      hasPost: !!result?.data?.post,
-    });
 
     if (!result?.data?.post) {
-      throw createError({
-        statusCode: 404,
+      return {
+        success: false,
         message: "Preview post not found",
-      });
+      };
     }
 
     // Set refresh token in cookie
@@ -103,12 +94,14 @@ export default defineEventHandler(async (event) => {
       }
     );
 
-    return result.data.post;
+    return {
+      success: true,
+      data: result.data.post,
+    };
   } catch (error: any) {
-    console.error("Preview error:", error);
-    throw createError({
-      statusCode: error.statusCode || 500,
+    return {
+      success: false,
       message: error.message || "Failed to fetch preview data",
-    });
+    };
   }
 });

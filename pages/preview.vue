@@ -38,9 +38,7 @@ const usePreviewData = async () => {
   const config = useRuntimeConfig();
   const cookie = useCookie(`${config.public.frontendSiteUrl}-rt`);
 
-  console.log("Preview page query params:", { code, previewId });
-
-  // Try with the alternative endpoint
+  // Try with the endpoint
   try {
     let queryParams = {};
 
@@ -62,14 +60,12 @@ const usePreviewData = async () => {
       });
     }
 
-    console.log("Making preview request with params:", queryParams);
-
-    const { data, pending, error } = await useFetch("/api/preview-alt", {
+    const { data, pending, error } = await useFetch("/api/preview", {
       method: "GET",
       query: queryParams,
     });
 
-    // Handle the response structure from the new API
+    // Handle the response structure from the API
     return {
       data: computed(() => data.value?.data || null),
       pending,
@@ -82,7 +78,6 @@ const usePreviewData = async () => {
       }),
     };
   } catch (e) {
-    console.error("Preview request failed:", e);
     return {
       data: ref(null),
       pending: ref(false),
