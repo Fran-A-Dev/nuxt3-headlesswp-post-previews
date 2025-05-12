@@ -4,7 +4,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     faustSecretKey: process.env.FAUST_SECRET_KEY,
     public: {
-      wordpressUrl: process.env.WORDPRESS_URL,
+      wordpressUrl: "",
       frontendSiteUrl: process.env.FRONTEND_URL,
     },
   },
