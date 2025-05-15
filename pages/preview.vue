@@ -1,6 +1,6 @@
 <template>
   <div>
-    <TheHeader></TheHeader>
+    <Header></Header>
     <div v-if="pending" class="text-center p-6">Loading preview...</div>
     <div v-else-if="error" class="text-red-500 text-center p-6">
       {{ error.message }}
@@ -20,75 +20,55 @@
 </template>
 
 <script setup>
+import Header from "~/components/Header.vue";
+
 const route = useRoute();
-// Handle both parameter formats
 const { code, preview_id } = route.query;
 const previewId = preview_id;
+const config = useRuntimeConfig();
+const cookie = useCookie("faust_preview_rt");
 
+// Format date with validation
 const formatDate = (date) => {
-  try {
-    return new Date(date).toLocaleDateString();
-  } catch (e) {
-    return date;
-  }
+  const dateObj = new Date(date);
+  return !isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString() : date;
 };
 
-// Create composable for preview data
-const usePreviewData = async () => {
-  const config = useRuntimeConfig();
-  const cookie = useCookie(`${config.public.frontendSiteUrl}-rt`);
+// Prepare query parameters
+let queryParams = {};
 
-  // Try with the endpoint
-  try {
-    let queryParams = {};
+if (cookie.value) {
+  queryParams = { refreshToken: cookie.value, previewId };
+} else if (code) {
+  queryParams = { code, previewId };
+} else {
+  throw createError({
+    statusCode: 400,
+    message: "No authorization code or refresh token available",
+  });
+}
 
-    // If we have a refresh token cookie, use it
-    if (cookie.value) {
-      queryParams = {
-        refreshToken: cookie.value,
-        previewId,
-      };
-    } else if (code) {
-      queryParams = {
-        code,
-        previewId,
-      };
-    } else {
-      throw createError({
-        statusCode: 400,
-        message: "No authorization code or refresh token available",
-      });
-    }
+// Fetch preview data
+const {
+  data: fetchData,
+  pending,
+  error: fetchError,
+} = await useFetch("/api/preview", {
+  method: "GET",
+  query: queryParams,
+});
 
-    const { data, pending, error } = await useFetch("/api/preview", {
-      method: "GET",
-      query: queryParams,
-    });
-
-    // Handle the response structure from the API
-    return {
-      data: computed(() => data.value?.data || null),
-      pending,
-      error: computed(() => {
-        if (error.value) return error.value;
-        if (data.value?.success === false) {
-          return new Error(data.value?.message || "Unknown error");
-        }
-        return null;
-      }),
-    };
-  } catch (e) {
-    return {
-      data: ref(null),
-      pending: ref(false),
-      error: ref(e),
-    };
+// Process the response
+const data = computed(() => fetchData.value?.data || null);
+const error = computed(() => {
+  if (fetchError.value) return fetchError.value;
+  if (fetchData.value?.success === false) {
+    return new Error(fetchData.value?.message || "Unknown error");
   }
-};
+  return null;
+});
 
-const { data, pending, error } = await usePreviewData();
-
-// Only set the head if we have data
+// Set page title if we have data
 if (data.value?.title) {
   useHead({
     title: data.value.title,

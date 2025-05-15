@@ -1,12 +1,10 @@
 import { getTokensFromCode, getTokensFromRefreshToken } from "../../faust";
 
-// Using the .get.ts extension ensures this is registered as a GET endpoint
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const query = getQuery(event);
   const { code, refreshToken, previewId } = query;
 
-  // Parse the preview ID as an integer
   const parsedPreviewId =
     typeof previewId === "string" ? parseInt(previewId, 10) : previewId;
 
@@ -20,12 +18,11 @@ export default defineEventHandler(async (event) => {
   try {
     let tokens;
 
-    // Try to use refresh token first if available
+    // Get tokens via refresh token or code
     if (refreshToken) {
       try {
-        tokens = await getTokensFromRefreshToken(refreshToken as string);
+        tokens = await getTokensFromRefreshToken(refreshToken);
       } catch (e) {
-        // If refresh fails, try with code
         if (!code) {
           return {
             success: false,
@@ -33,10 +30,10 @@ export default defineEventHandler(async (event) => {
               "Invalid refresh token and no authorization code available",
           };
         }
-        tokens = await getTokensFromCode(decodeURIComponent(code as string));
+        tokens = await getTokensFromCode(decodeURIComponent(code));
       }
     } else if (code) {
-      tokens = await getTokensFromCode(decodeURIComponent(code as string));
+      tokens = await getTokensFromCode(decodeURIComponent(code));
     } else {
       return {
         success: false,
@@ -44,13 +41,8 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Fetch preview data from WordPress
-    const graphqlUrl = `${config.public.wordpressUrl}/graphql`.replace(
-      "/graphql/graphql",
-      "/graphql"
-    );
-
-    const response = await fetch(graphqlUrl, {
+    // Fetch preview post from WordPress
+    const response = await fetch(`${config.public.wordpressUrl}/graphql`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -67,9 +59,7 @@ export default defineEventHandler(async (event) => {
             }
           }
         `,
-        variables: {
-          id: parsedPreviewId,
-        },
+        variables: { id: parsedPreviewId },
       }),
     });
 
@@ -82,23 +72,18 @@ export default defineEventHandler(async (event) => {
       };
     }
 
-    // Set refresh token in cookie
-    setCookie(
-      event,
-      `${config.public.frontendSiteUrl}-rt`,
-      tokens.refreshToken,
-      {
-        httpOnly: true,
-        maxAge: 300,
-        path: "/",
-      }
-    );
+    // Set refresh token cookie for future requests
+    setCookie(event, "faust_preview_rt", tokens.refreshToken, {
+      httpOnly: true,
+      maxAge: 300,
+      path: "/",
+    });
 
     return {
       success: true,
       data: result.data.post,
     };
-  } catch (error: any) {
+  } catch (error) {
     return {
       success: false,
       message: error.message || "Failed to fetch preview data",
