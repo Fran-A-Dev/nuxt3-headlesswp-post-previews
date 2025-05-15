@@ -20,15 +20,9 @@ const query = `
 `;
 
 const { data, pending } = await useFetch(
-  `${config.public.wordpressUrl}/graphql`,
+  `${config.public.wordpressUrl}/graphql?query=${encodeURIComponent(query)}`,
   {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: {
-      query,
-    },
+    method: "GET",
     transform: (response) => response?.data?.posts?.nodes || [],
     onResponseError(error) {
       error.value = error.message || "Failed to fetch posts";
